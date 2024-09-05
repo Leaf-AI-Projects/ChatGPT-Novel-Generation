@@ -10,7 +10,7 @@ Everyone is welcome to test ChatGPT's ability to write a novel! Please follow th
 
 1. [Create an OpenAI account and get an API Key.](https://www.maisieai.com/help/how-to-get-an-openai-api-key-for-chatgpt)
 
-2. Go to [link missing]().
+2. Go to [https://chatgpt-novel-generation-e0691bd56612.herokuapp.com/](https://chatgpt-novel-generation-e0691bd56612.herokuapp.com/).
 
 3. Press the API Key button, then paste your OpenAI API Key in the designated input field.
 

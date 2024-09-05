@@ -9,53 +9,21 @@ $(document).ready(function () {
         saveUserData();
     });
 
-    $('#style-changer-tab').click(function (e) {
+    $('#novel-gen-tab').click(function (e) {
         e.preventDefault();
-        $('#style-changer').show();
-        $('#book-writer').hide();
-        $('#book-condenser').hide();
+        $('#novel-gen').show();
         $('#api-key').hide();
         $(this).addClass('active');
-        $('#book-writer-tab').removeClass('active');
-        $('#book-condenser-tab').removeClass('active');
-    });
-
-    $('#book-writer-tab').click(function (e) {
-        e.preventDefault();
-        $('#style-changer').hide();
-        $('#book-writer').show();
-        $('#book-condenser').hide();
-        $('#api-key').hide();
-        $(this).addClass('active');
-        $('#style-changer-tab').removeClass('active');
-        $('#book-condenser-tab').removeClass('active');
-    });
-
-    $('#book-condenser-tab').click(function (e) {
-        e.preventDefault();
-        $('#style-changer').hide();
-        $('#book-writer').hide();
-        $('#book-condenser').show();
-        $('#api-key').hide();
-        $(this).addClass('active');
-        $('#book-writer-tab').removeClass('active');
-        $('#style-changer-tab').removeClass('active');
     });
 
     $('#api-key-btn').click(function (e) {
         e.preventDefault();
-        $('#style-changer').hide();
-        $('#book-writer').hide();
-        $('#book-condenser').hide();
+        $('#novel-gen').hide();
         $('#api-key').show();
-        $('#book-writer-tab').removeClass('active');
-        $('#style-changer-tab').removeClass('active');
-        $('#book-condenser-tab').removeClass('active');
+        $('#novel-gen-tab').removeClass('active');
     });
 
-    $('#style-changer').hide();
-    $('#book-writer').hide();
-    $('#book-condenser').hide();
+    $('#novel-gen').hide();
     $('#api-key').show();
 
     $('#addInputBtn').click(function () {
@@ -63,82 +31,7 @@ $(document).ready(function () {
         updateLevels();
     });
 
-    $('#style-changer-form').on('submit', function (e) {
-        e.preventDefault();
-
-        // Clear previous error messages
-        $('.error').text('');
-
-        // Validation
-        let isValid = true;
-        if ($('#fileUpload').val() === '') {
-            $('#fileError').text('Please upload a file.');
-            isValid = false;
-        }
-        if ($('#title').val().trim() === '') {
-            $('#titleError').text('Please enter a title.');
-            isValid = false;
-        }
-        if ($('#author').val().trim() === '') {
-            $('#authorError').text('Please enter an author.');
-            isValid = false;
-        }
-        if ($('#prompt').val().trim() === '') {
-            $('#promptError').text('Please enter a prompt.');
-            isValid = false;
-        }
-
-        if (!isValid) {
-            return; // Stop the function if validation fails
-        }
-
-        prefix = 'style-changer'
-
-        // Show the loading bar
-        $('#' + prefix + '-loading-bar-container').show();
-        $('#' + prefix + '-loading-bar').css('width', '0%');
-        $('#' + prefix + '-loading-percent').text('0%'); // Reset the text
-
-        var title = $('#title').val().trim();
-
-        var formData = new FormData(this);
-        var fileInput = document.getElementById('fileUpload');
-        formData.append("file", fileInput.files[0]);
-        formData.append("api_key", $("#api-key-input").val());
-
-        $.ajax({
-            type: 'POST',
-            url: '/style-changer', // Your Flask endpoint
-            data: formData,
-            contentType: false,
-            processData: false,
-            xhr: function () {
-                var xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener("progress", function (evt) {
-                    if (evt.lengthComputable) {
-                        var percentComplete = evt.loaded / evt.total;
-                        // Update loading bar width
-                        $('#' + prefix + '-loading-bar').css('width', percentComplete * 100 + '%');
-                    }
-                }, false);
-                return xhr;
-            },
-            success: function (response) {
-                console.log("Data submitted successfully:", response);
-            },
-            error: function (xhr, status, error) {
-                // Handle any errors here
-                console.error("Error: " + error);
-                $('#style-changer-response').html("An error occurred: " + error);
-            },
-            complete: function () {
-                // Hide the loading bar when the request is complete
-                updateLoadingBar(title, prefix);
-            }
-        });
-    });
-
-    $('#book-writer-form').on('submit', function (e) {
+    $('#novel-gen-form').on('submit', function (e) {
         e.preventDefault();
 
         // Clear previous error messages
@@ -147,8 +40,8 @@ $(document).ready(function () {
         // Validation
         let isValid = true;
 
-        if ($('#book-writer-title').val().trim() === '') {
-            $('#book-writer-title-Error').text('Please enter a title.');
+        if ($('#novel-gen-title').val().trim() === '') {
+            $('#novel-gen-title-Error').text('Please enter a title.');
             isValid = false;
         }
 
@@ -156,7 +49,7 @@ $(document).ready(function () {
             return; // Stop the function if validation fails
         }
 
-        prefix = 'book-writer'
+        prefix = 'novel-gen'
 
         // Show the loading bar
         $('#' + prefix + '-loading-bar-container').show();
@@ -164,12 +57,12 @@ $(document).ready(function () {
         $('#' + prefix + '-loading-percent').text('0%'); // Reset the text
 
         let formData = gatherFormData();
-        formData['title'] = $('#book-writer-title').val().trim();
+        formData['title'] = $('#novel-gen-title').val().trim();
         formData["api_key"] = $("#api-key-input").val();
 
         $.ajax({
             type: "POST",
-            url: "/book-writer",
+            url: "/novel-gen",
             contentType: "application/json",
             data: JSON.stringify(formData),
             xhr: function () {
@@ -197,24 +90,24 @@ $(document).ready(function () {
     });
 
     // Event listener for when the selection changes
-    $('#book-writer-prompt-type').change(function() {
+    $('#novel-gen-prompt-type').change(function() {
         // Get the selected value
         var selectedOption = $(this).val();
         
         // Hide both tabs initially
-        $('#book-writer-outline-tab').hide();
-        $('#book-writer-summary-tab').hide();
+        $('#novel-gen-outline-tab').hide();
+        $('#novel-gen-summary-tab').hide();
 
         // Show the relevant tab based on the selected option
         if (selectedOption === 'Outline') {
-            $('#book-writer-outline-tab').show();
+            $('#novel-gen-outline-tab').show();
         } else if (selectedOption === 'Summary') {
-            $('#book-writer-summary-tab').show();
+            $('#novel-gen-summary-tab').show();
         }
     });
 
     // Trigger the change event on page load to ensure the correct tab is shown
-    $('#book-writer-prompt-type').trigger('change');
+    $('#novel-gen-prompt-type').trigger('change');
 });
 
 function addInputField() {
@@ -309,7 +202,7 @@ function deleteInputField(element) {
 }
 
 function gatherFormData() {
-    let selectedPromptType = $('#book-writer-prompt-type').val();
+    let selectedPromptType = $('#novel-gen-prompt-type').val();
     let formData = {};
 
     if (selectedPromptType === 'Outline') {

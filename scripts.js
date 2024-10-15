@@ -215,6 +215,7 @@ function gatherFormData() {
         formData['outline'] = inputData;
     } else if (selectedPromptType === 'Summary') {
         formData['summary'] = $('#summaryTextarea').val().trim();
+        formData['version'] = $('#novel-gen-version').val().trim();
     }
 
     return formData;
@@ -282,6 +283,11 @@ async function testOpenAIKey() {
 // Function to periodically fetch progress and update the loading bar
 function updateLoadingBar(title, prefix) {
     $.get('/progress', function (data) {
+        if (data.fail) {
+            $('#' + prefix + '-loading-bar-container').hide();
+            $('#novel-gen-error').text('Error occurred on the server. Unable to create novel.' + data.fail_message);
+            return -1
+        }
         if (data.current && data.total) {
             var progress = (data.current / data.total) * 100;
             $('#' + prefix + '-loading-bar').css('width', progress + '%');
@@ -290,7 +296,6 @@ function updateLoadingBar(title, prefix) {
 
         if (data.complete) {
             deliverPDF(data.text, title);
-            // Hide the loading bar when processing is complete
             $('#' + prefix + '-loading-bar-container').hide();
         }
         else {

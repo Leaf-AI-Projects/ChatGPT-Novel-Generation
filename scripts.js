@@ -1,3 +1,5 @@
+let wordList = [];
+
 $(document).ready(function () {
     loadUserData();
 
@@ -108,6 +110,26 @@ $(document).ready(function () {
 
     // Trigger the change event on page load to ensure the correct tab is shown
     $('#novel-gen-prompt-type').trigger('change');
+
+    fetch('assets/word_list.csv')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Network response was not ok, status: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(data => {
+            wordList = parseCSV(data);  // Store parsed CSV data in the global variable
+        })
+        .catch(error => {
+            console.error("Failed to fetch CSV:", error);
+        });
+
+    // Attach the click event to the button with the die icon to generate a title
+    $('#generate-title-btn').click(function (e) {
+        e.preventDefault();
+        $('#novel-gen-title').val(generateRandomTitle());
+    });
 });
 
 function addInputField() {
@@ -299,15 +321,15 @@ function updateLoadingBar(title, prefix) {
             $('#' + prefix + '-loading-bar-container').hide();
         }
         else {
-            setTimeout(() => updateLoadingBar(title, prefix), 1000); // Update every second
+            setTimeout(() => updateLoadingBar(title, prefix), 10000); // Update every 10 seconds
         }
     });
 }
 
-// JavaScript Part
 function deliverPDF(text, title) {
     // Prepare the data to be sent in the request
     const data = JSON.stringify({text: text, title: title});
+    console.log("Sending data:", data);
 
     // Use the fetch API to send the POST request
     fetch('/create-pdf', {
@@ -320,27 +342,115 @@ function deliverPDF(text, title) {
     .then(response => {
         // Check if the response is ok (status in the range 200-299)
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            // Try to parse the error message from the response
+            return response.json().then(errData => {
+                console.error("Server error message:", errData);
+                throw new Error(errData.message || 'Failed to create PDF');
+            });
         }
         // Retrieve the filename from the Content-Disposition header
-        // This is optional, but useful if you want to use the original filename
-        const filename = response.headers.get('Content-Disposition').split('filename=')[1].replaceAll('"', '');
+        const disposition = response.headers.get('Content-Disposition');
+
+        let filename = 'download.pdf';
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            filename = disposition.split('filename=')[1].replace(/"/g, '');
+        }
+
         return response.blob().then(blob => ({blob, filename}));
     })
     .then(({ blob, filename }) => {
+        console.log("Downloading file:", filename);
         // Create a URL for the blob object
         const url = window.URL.createObjectURL(blob);
         // Create an anchor (<a>) element with the URL as the href
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename || 'download.pdf'; // Use the filename from the header or a default
-        document.body.appendChild(a); // Append the anchor to the body
-        a.click(); // Simulate a click on the anchor to trigger the download
-        window.URL.revokeObjectURL(url); // Clean up by revoking the blob URL
-        a.remove(); // Remove the anchor from the body
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
     })
     .catch(error => {
         console.error('Error creating PDF:', error);
-        // Handle any errors that occurred during the fetch
+        // Display an error message to the user
+        alert('An error occurred while creating the PDF: ' + error.message);
     });
+}
+
+// Function to parse the CSV text into an array of objects
+function parseCSV(data) {
+    const rows = data.split('\n');
+    
+    return rows.slice(1).map((row, index) => {
+        const columns = row.split(',');
+
+        // Ensure we have both word and type columns
+        if (columns.length !== 2 || !columns[0] || !columns[1]) {
+            return null;  // Skip invalid rows
+        }
+
+        const word = columns[0].trim();
+        const type = columns[1].trim();
+
+        // Check if word and type are not undefined or empty
+        if (!word || !type) {
+            return null;  // Skip invalid data
+        }
+
+        return { Word: word, Type: type };
+    }).filter(row => row !== null);  // Filter out null values (invalid rows)
+}
+
+function generateRandomTitle() {
+    const adjectives = wordList.filter(row => row.Type === 'adj').map(row => row.Word);
+    const nouns = wordList.filter(row => row.Type === 'noun').map(row => row.Word);
+    const verbs = wordList.filter(row => row.Type === 'verb').map(row => row.Word);
+
+    const titleStructures = [
+        "{adj} {noun}",
+        "The {adj} {noun}",
+        "{noun} of {noun}",
+        "{verb} the {noun}",
+        "{adj} {noun} {verb} {noun}",
+        "{noun} and {noun}",
+        "The {noun} of {adj} {noun}"
+    ];
+
+    const getRandomElement = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    // Choose a random structure
+    const structure = getRandomElement(titleStructures);
+
+    // Replace placeholders with random words
+    let title = structure
+        .replace(/{adj}/g, () => getRandomElement(adjectives))
+        .replace(/{noun}/g, () => getRandomElement(nouns))
+        .replace(/{verb}/g, () => getRandomElement(verbs));
+
+    // Capitalize the title properly like a book title
+    title = toTitleCase(title);
+
+    console.log("Generated Title: ", title);
+
+    return title;
+}
+
+// Function to capitalize title properly
+function toTitleCase(title) {
+    const minorWords = ['and', 'or', 'but', 'a', 'an', 'the', 'for', 'nor', 'on', 'at', 'to', 'by', 'with', 'of']; // Words that should be lowercase unless at the start or end
+    const words = title.split(' ');
+
+    return words.map((word, index) => {
+        if (index === 0 || index === words.length - 1 || !minorWords.includes(word.toLowerCase())) {
+            return capitalizeWord(word); // Capitalize important words or the first/last word
+        } else {
+            return word.toLowerCase(); // Leave minor words lowercase
+        }
+    }).join(' ');
+}
+
+// Helper function to capitalize a single word
+function capitalizeWord(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }

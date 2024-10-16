@@ -1,3 +1,5 @@
+import os
+import traceback
 import threading
 
 from flask import request, jsonify, send_from_directory, send_file
@@ -30,7 +32,7 @@ def configure_routes(app):
         if version == 'v0':
             story_creator = SC0(progress_data=progress_data)
         elif version == 'v1':
-            story_creator = SC1(progress_data=progress_data)
+            story_creator = SC1(progress_data=progress_data, api_key=api_key)
         else:
             story_creator = SC0(progress_data=progress_data)
 
@@ -41,7 +43,7 @@ def configure_routes(app):
         #     threading.Thread(target=story_creator.process_outline, args=(title, outline_data, chatgpt_model, api_key)).start()
         if 'summary' in data:
             summary_data = data['summary']
-            threading.Thread(target=story_creator.process_summary, args=(title, summary_data, chatgpt_model, api_key)).start()
+            threading.Thread(target=story_creator.process_summary, args=(title, summary_data, chatgpt_model)).start()
         else:
             return jsonify({'message': 'Type of format not specified. Expected outline or summary.'}), 400
 
@@ -49,17 +51,36 @@ def configure_routes(app):
 
     @app.route('/progress')
     def progress():
-        print(progress_data)
+        temp_progress_data = progress_data.copy()
+
+        if 'text' in temp_progress_data:
+            temp_progress_data['text'] = ''
+
+        print(temp_progress_data)
+
         return jsonify(progress_data)
 
-    # Flask route to create and serve PDF
     @app.route('/create-pdf', methods=['POST'])
     def pdf_route():
         data = request.json
-        print(data)
 
-        story_pdf = StoryPDF(data['text'], data['title'])
-        pdf_full_path = story_pdf.create()
+        try:
+            story_pdf = StoryPDF()
 
-        # Send the PDF file directly to the client for download
-        return send_file(pdf_full_path, as_attachment=True)
+            pdf_full_path = story_pdf.create(title=data['title'], text=data['text'])
+
+            if not pdf_full_path:
+                raise ValueError("PDF file path is invalid or empty")
+
+            return send_file(pdf_full_path, as_attachment=True)
+
+        except Exception as e:
+            # Log the exception with traceback
+            print("An error occurred while generating the PDF.")
+
+            # Update progress_data in case of failure (if needed)
+            progress_data['fail'] = True
+            progress_data['fail_message'] = traceback.format_exc()
+
+            # Return a JSON response with error information and a 500 status code
+            return jsonify({'error': 'Failed to generate PDF', 'message': str(e)}), 500

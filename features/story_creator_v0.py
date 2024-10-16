@@ -4,7 +4,7 @@ import traceback
 
 from utilities.text_utilities import TextUtilities
 from utilities.outline_node import OutlineNode
-import prompt_templates as pt
+import utilities.prompt_templates as pt
 
 
 class StoryCreator:
@@ -78,8 +78,6 @@ class StoryCreator:
         # Filter out any empty strings that might result from the split
         parts_of_summary_expanded = [part for part in parts_of_summary_expanded if part.strip()]
 
-        print(parts_of_summary_expanded)
-
         # Update progress
         self.progress_data['total'] = self.progress_data['current'] + (len(parts_of_summary_expanded) * 2) + 1
 
@@ -137,8 +135,6 @@ class StoryCreator:
         elif prompt_level == 'expanded parts':
             instruction = pt.summary_template_v0002[3].format(title=title, section1=prompt[0], section2=prompt[1])
 
-        print(instruction)
-
         url = 'https://api.openai.com/v1/chat/completions'
         headers = {
             'Authorization': 'Bearer ' + api_key,  # Added space after 'Bearer'
@@ -147,7 +143,7 @@ class StoryCreator:
         data = {
             'model': chatgpt_model,
             'messages': [{'role': 'user', 'content': instruction}],
-            'temperature': 0.7
+            'temperature': 1.0
         }
 
         try:

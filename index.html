@@ -35,7 +35,7 @@
             <form id="novel-gen-form">
                 <span class="inputLabel">Generation Version: </span><select id="novel-gen-version" name="novel-gen-version">
                     <option value="v0">v0</option>
-                    <option value="v1">v1</option>
+                    <option value="v1" selected>v1</option>
                 </select>
                 <br />
                 <span class="inputLabel">Prompt Type: </span><select id="novel-gen-prompt-type" name="novel-gen-prompt-type">
@@ -43,8 +43,9 @@
                     <option value="Summary">Summary</option>
                 </select>
                 <br />
-                <span class="inputLabel">Title: </span><input type="text" id="novel-gen-title"
-                        name="novel-gen-title" placeholder="Whispers of the Midnight Forest">
+                <span class="inputLabel">Title: </span>
+                <input type="text" id="novel-gen-title" name="novel-gen-title" placeholder="Enter your title here...">
+                <button id="generate-title-btn" class="btn btn-secondary" style="margin-left: 10px;">🎲</button>
                 <div id="novel-gen-outline-tab">
                     <div class="error" id="novel-gen-title-Error"></div>
                     <div id="inputContainer"></div>

@@ -26,13 +26,13 @@ def configure_routes(app):
         data = request.json
         title = data['title']
         api_key = data['api_key']
-        chatgpt_model = 'gpt-4o-mini'
+        chatgpt_model = data['bulk_model']
         version = data['version']
 
         if version == 'v0':
             story_creator = SC0(progress_data=progress_data)
         elif version == 'v1':
-            story_creator = SC1(progress_data=progress_data, api_key=api_key)
+            story_creator = SC1(progress_data=progress_data, api_key=api_key, testing=app.config.get('TESTING'))
         else:
             story_creator = SC0(progress_data=progress_data)
 
@@ -56,8 +56,6 @@ def configure_routes(app):
         if 'text' in temp_progress_data:
             temp_progress_data['text'] = ''
 
-        print(temp_progress_data)
-
         return jsonify(progress_data)
 
     @app.route('/create-pdf', methods=['POST'])
@@ -67,7 +65,7 @@ def configure_routes(app):
         try:
             story_pdf = StoryPDF()
 
-            pdf_full_path = story_pdf.create(title=data['title'], text=data['text'])
+            pdf_full_path = story_pdf.create(title=data['title'], chapters=data['chapters'])
 
             if not pdf_full_path:
                 raise ValueError("PDF file path is invalid or empty")

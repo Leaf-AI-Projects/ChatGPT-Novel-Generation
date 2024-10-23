@@ -1,19 +1,20 @@
+import os
 import re
 import time
 import requests
 import traceback
-import threading
 from threading import Thread, Lock
 
-from utilities.text_utilities import TextUtilities
-from utilities.outline_node import OutlineNode
 import utilities.prompt_templates as pt
-
+from utilities.text_utilities import TextUtilities as tu
 
 class StoryCreator:
-    def __init__(self, progress_data, api_key):
+    def __init__(self, progress_data, api_key, testing=False):
         self.progress_data = progress_data
         self.api_key = api_key
+        self.testing = testing
+
+        self.TESTING_CHAP_DELIM = "[CHAPTER_DELIM]"
 
     def process_chapter(self, index, chap, prompt_vars, chatgpt_model, completed_chapters_list, progress_data, lock):
         detailed_chap = self.write_text(prompt_vars, chatgpt_model, 'create_chapter', chap=chap)
@@ -29,7 +30,7 @@ class StoryCreator:
         while '^^^' not in chapter_text:
             write_chapter_type = 'write_chapter' if chapter_index != 0 else 'write_first_chapter'
             if last_chapter_text != '':
-                first_half, last_chapter_text = self.split_paragraphs(last_chapter_text)
+                first_half, last_chapter_text = tu.splitParagraphs(last_chapter_text)
             last_chapter_text = self.write_text(
                 prompt_vars, chatgpt_model, write_chapter_type,
                 det_chap=detailed_chap, prev_sec=last_chapter_text
@@ -42,7 +43,7 @@ class StoryCreator:
 
             chapter_index += 1
 
-        chapter_text = self.get_chapter_text_until_marker(chapter_text)
+        chapter_text = tu.getChapterTextUntilMarker(chapter_text)
 
         # Store the result in completed_chapters_list in a thread-safe manner
         with lock:
@@ -56,17 +57,33 @@ class StoryCreator:
             'title': title,
             'user_summary': summary
         }
+        
+        if self.testing:
+            # Check if self.testing is True and if an example novel exists in the assets folder
+            example_novel_path = os.path.join('assets', 'example_novel.txt')
+            if os.path.exists(example_novel_path):
+                # Load the existing example novel and assign progress data fields
+                with open(example_novel_path, 'r') as f:
+                    example_novel = f.read()
 
+                # Split the chapters using the unique delimiter
+                chapter_list = example_novel.split(self.TESTING_CHAP_DELIM)
+                chapter_list = [chap for chap in chapter_list if chap.strip()]  # Remove empty chapters if any
+
+                # Skip generation, set the example novel as the generated text
+                self.progress_data['text'] = example_novel
+                self.progress_data['chapters'] = chapter_list
+                self.progress_data['complete'] = True
+                return
+
+        # Continue with generation if example novel is not found or not in testing mode
         create_summary_type = 'create_summary' if summary != '' else 'create_summary_from_scratch'
 
         prompt_vars['summary'] = self.write_text(prompt_vars, 'gpt-4o', create_summary_type)
         self.progress_data['current'] += 1
 
-        # # Store final text in progress
-        # self.progress_data['text'] = ''.join(prompt_vars['summary'])
-        # self.progress_data['complete'] = True
-
-        # return 1
+        prompt_vars['author'] = self.write_text(prompt_vars, 'gpt-4o', 'create_author')
+        self.progress_data['current'] += 1
 
         prompt_vars['characters'] = self.write_text(prompt_vars, 'gpt-4o', 'create_characters')
         self.progress_data['current'] += 1
@@ -77,11 +94,12 @@ class StoryCreator:
         retry_count = 0
         max_retries = 5
         chapter_list = []
-        
+
         # Retry up to max_retries if "Chapter" is not found
         while retry_count < max_retries:
-            # Call the text generation method
             chapters = self.write_text(prompt_vars, 'gpt-4o', 'create_chapters')
+
+            print(f'Chapters: {chapters}')
 
             # Split the string at each "Chapter X"
             pattern = r'(?=Chapter \d+)'  # Lookahead for 'Chapter ' followed by one or more digits
@@ -92,6 +110,8 @@ class StoryCreator:
 
             # Check if any part contains "Chapter"
             if any("Chapter" in chap for chap in chapter_list):
+                if self.testing:
+                    chapter_list = chapter_list[:3]
                 break
             else:
                 if retry_count + 1 == max_retries:
@@ -115,6 +135,7 @@ class StoryCreator:
 
         # Create and start a thread for each chapter
         for index, chap in enumerate(chapter_list):
+            print(f'Chapter: {chap}')
             t = Thread(
                 target=self.process_chapter,
                 args=(index, chap, prompt_vars, chatgpt_model, completed_chapters_list, self.progress_data, lock)
@@ -128,9 +149,13 @@ class StoryCreator:
 
         # Store final text in progress
         self.progress_data['text'] = ''.join(completed_chapters_list)
-        with open("example.txt", "w", encoding='utf-8') as file:
-            file.write(self.progress_data['text'])
+        self.progress_data['chapters'] = completed_chapters_list
         self.progress_data['complete'] = True
+
+        # If testing mode is on, store the generated novel in the assets folder
+        if self.testing:
+            with open(example_novel_path, 'w') as f:
+                f.write(self.TESTING_CHAP_DELIM.join(completed_chapters_list))
 
     def write_text(self, prompt_vars, chatgpt_model, prompt_type, chap=None, det_chap=None, prev_sec=None):
         temp_prompt_vars = prompt_vars.copy()
@@ -141,7 +166,7 @@ class StoryCreator:
         if prev_sec:
             temp_prompt_vars['previous_section'] = prev_sec
 
-        instruction = pt.summary_template_v0010[prompt_type].format(**temp_prompt_vars)
+        instruction = pt.summary_template_v0020[prompt_type].format(**temp_prompt_vars)
 
         url = 'https://api.openai.com/v1/chat/completions'
         headers = {
@@ -164,47 +189,3 @@ class StoryCreator:
             self.progress_data['fail'] = True
             self.progress_data['fail_message'] = str(traceback.format_exc())
             raise SystemExit(e)
-        
-    def split_strings_evenly_by_paragraphs(self, original_strings):
-        new_list = []
-
-        for s in original_strings:
-            # Split the string into paragraphs
-            paragraphs = s.split('\n\n')
-            
-            # Find the split point
-            split_point = len(paragraphs) // 2 + len(paragraphs) % 2  # Ensure first half is equal or larger
-            
-            # Split the paragraphs into two halves
-            first_half = '\n\n'.join(paragraphs[:split_point])
-            second_half = '\n\n'.join(paragraphs[split_point:])
-            
-            # Add the halves to the new list
-            new_list.extend([first_half, second_half])
-
-        return new_list
-    
-    def split_paragraphs(self, paragraphs):
-        # Split the text into sentences using a regular expression that matches sentence-ending punctuation.
-        sentences = re.split(r'(?<=[.!?])\s+', paragraphs.strip())
-        
-        # Determine the halfway point based on the number of sentences
-        total_sentences = len(sentences)
-        halfway_index = total_sentences // 2
-
-        # Rebuild the first and second halves
-        first_half = ' '.join(sentences[:halfway_index]).strip()
-        second_half = ' '.join(sentences[halfway_index:]).strip()
-
-        return first_half, second_half
-    
-    def get_chapter_text_until_marker(self, chapter_string):
-        # Find the index of the "^^^" marker
-        end_index = chapter_string.find('^^^')
-        
-        # If the marker is found, return all text up to that point
-        if end_index != -1:
-            return chapter_string[:end_index].strip()
-        
-        # If the marker is not found, return the whole string
-        return chapter_string.strip()

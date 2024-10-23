@@ -238,6 +238,7 @@ function gatherFormData() {
     } else if (selectedPromptType === 'Summary') {
         formData['summary'] = $('#summaryTextarea').val().trim();
         formData['version'] = $('#novel-gen-version').val().trim();
+        formData['bulk_model'] = $('#bulk-model').val().trim();
     }
 
     return formData;
@@ -267,7 +268,7 @@ function loadUserData() {
 async function testOpenAIKey() {
     var apiKey = $("#api-key-input").val();
 
-    const url = 'https://api.openai.com/v1/chat/completions'; // Example endpoint
+    const url = 'https://api.openai.com/v1/chat/completions';
 
     const headers = {
         'Authorization': `Bearer ${apiKey}`,
@@ -317,7 +318,7 @@ function updateLoadingBar(title, prefix) {
         }
 
         if (data.complete) {
-            deliverPDF(data.text, title);
+            deliverPDF(data.chapters, title);
             $('#' + prefix + '-loading-bar-container').hide();
         }
         else {
@@ -326,9 +327,9 @@ function updateLoadingBar(title, prefix) {
     });
 }
 
-function deliverPDF(text, title) {
+function deliverPDF(chapters, title) {
     // Prepare the data to be sent in the request
-    const data = JSON.stringify({text: text, title: title});
+    const data = JSON.stringify({chapters: chapters, title: title});
     console.log("Sending data:", data);
 
     // Use the fetch API to send the POST request

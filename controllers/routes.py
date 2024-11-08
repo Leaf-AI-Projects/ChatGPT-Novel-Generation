@@ -8,6 +8,7 @@ from models.story_pdf import StoryPDF
 
 from features.story_creator_v0 import StoryCreator as SC0
 from features.story_creator_v1 import StoryCreator as SC1
+from features.story_creator_v2 import StoryCreator as SC2
 
 progress_data = {}
 
@@ -22,6 +23,7 @@ def configure_routes(app):
         progress_data['complete'] = False
         progress_data['fail'] = False
         progress_data['fail_message'] = ''
+        progress_data['meta_text'] = ''
 
         data = request.json
         title = data['title']
@@ -33,14 +35,11 @@ def configure_routes(app):
             story_creator = SC0(progress_data=progress_data)
         elif version == 'v1':
             story_creator = SC1(progress_data=progress_data, api_key=api_key, testing=app.config.get('TESTING'))
+        elif version == 'v2':
+            story_creator = SC2(progress_data=progress_data, api_key=api_key, testing=app.config.get('TESTING'))
         else:
-            story_creator = SC0(progress_data=progress_data)
+            story_creator = SC2(progress_data=progress_data, api_key=api_key, testing=app.config.get('TESTING'))
 
-        # if 'outline' in data:
-        #     outline_data = data['outline']
-        #     tree = parse_to_tree(outline_data)
-        #     endpoints = concatenate_endpoints(outline_data)
-        #     threading.Thread(target=story_creator.process_outline, args=(title, outline_data, chatgpt_model, api_key)).start()
         if 'summary' in data:
             summary_data = data['summary']
             threading.Thread(target=story_creator.process_summary, args=(title, summary_data, chatgpt_model)).start()

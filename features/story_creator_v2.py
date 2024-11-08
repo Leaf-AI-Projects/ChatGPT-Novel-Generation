@@ -6,6 +6,8 @@ import traceback
 from datetime import datetime
 from threading import Thread, Lock
 
+from markdownify import markdownify as md
+
 import utilities.prompt_templates as pt
 from utilities.text_utilities import TextUtilities as tu
 
@@ -37,7 +39,7 @@ class StoryCreator:
                 first_half, last_chapter_text = tu.splitParagraphs(last_chapter_text)
             last_chapter_text = self.write_text(
                 prompt_vars, chatgpt_model, write_chapter_type,
-                det_chap=detailed_chap, prev_sec=last_chapter_text
+                det_chap=detailed_chap, chap_num=index + 1, prev_sec=last_chapter_text
             )
             chapter_text += last_chapter_text
 
@@ -56,6 +58,8 @@ class StoryCreator:
             completed_chapters_list[index] = chapter_text
 
     def process_summary(self, title, summary, chatgpt_model):
+        strong_chatgpt_model = 'gpt-4o'
+
         self.progress_data['total'] = 100
         self.progress_data['current'] = 0
 
@@ -88,16 +92,19 @@ class StoryCreator:
         # Continue with generation if example novel is not found or not in testing mode
         create_summary_type = 'create_summary' if summary != '' else 'create_summary_from_scratch'
 
-        prompt_vars['summary'] = self.write_text(prompt_vars, 'gpt-4o', create_summary_type)
+        prompt_vars['summary'] = self.write_text(prompt_vars, strong_chatgpt_model, create_summary_type)
         self.progress_data['current'] += 1
 
-        prompt_vars['author'] = self.write_text(prompt_vars, 'gpt-4o', 'create_author')
+        prompt_vars['author'] = self.write_text(prompt_vars, strong_chatgpt_model, 'create_author')
         self.progress_data['current'] += 1
 
-        prompt_vars['characters'] = self.write_text(prompt_vars, 'gpt-4o', 'create_characters')
+        prompt_vars['characters'] = self.write_text(prompt_vars, strong_chatgpt_model, 'create_characters')
         self.progress_data['current'] += 1
 
-        prompt_vars['themes_and_conflicts'] = self.write_text(prompt_vars, 'gpt-4o', 'create_themes_and_conflicts')
+        prompt_vars['themes_and_conflicts'] = self.write_text(prompt_vars, strong_chatgpt_model, 'create_themes_and_conflicts')
+        self.progress_data['current'] += 1
+
+        prompt_vars['novel_framework'] = self.write_text(prompt_vars, strong_chatgpt_model, 'create_novel_framework')
         self.progress_data['current'] += 1
 
         retry_count = 0
@@ -106,7 +113,7 @@ class StoryCreator:
 
         # Retry up to max_retries if "Chapter" is not found
         while retry_count < max_retries:
-            chapters = self.write_text(prompt_vars, 'gpt-4o', 'create_chapters')
+            chapters = self.write_text(prompt_vars, strong_chatgpt_model, 'create_chapters')
 
             self.progress_data['meta_text'] += f'Chapters:\n{chapters}\n\n'
 
@@ -172,16 +179,18 @@ class StoryCreator:
             with open(example_novel_metadata_path, 'w') as f:
                 f.write(self.progress_data['meta_text'])
 
-    def write_text(self, prompt_vars, chatgpt_model, prompt_type, chap=None, det_chap=None, prev_sec=None):
+    def write_text(self, prompt_vars, chatgpt_model, prompt_type, chap=None, det_chap=None, chap_num=None, prev_sec=None):
         temp_prompt_vars = prompt_vars.copy()
         if chap:
             temp_prompt_vars['chapter'] = chap
         if det_chap:
             temp_prompt_vars['detailed_chapter'] = det_chap
+        if chap_num:
+            temp_prompt_vars['chapter_num'] = chap_num
         if prev_sec:
             temp_prompt_vars['previous_section'] = prev_sec
 
-        instruction = pt.summary_template_v0020[prompt_type].format(**temp_prompt_vars)
+        instruction = pt.summary_template_v0030[prompt_type].format(**temp_prompt_vars)
 
         url = 'https://api.openai.com/v1/chat/completions'
         headers = {
@@ -195,12 +204,22 @@ class StoryCreator:
         }
 
         try:
-            response = requests.post(url, headers=headers, json=data).json()
-            if 'choices' in response:
-                return response['choices'][0]['message']['content'].replace('#', '').replace('*', '')
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()  # This will raise an error if the status code is not 2xx
+            response_json = response.json()
+            if 'choices' in response_json:
+                return md(response_json['choices'][0]['message']['content'])
             else:
-                raise Exception(f'Invalid response from ChatGPT. Response: {response}')
-        except Exception as e:
+                raise Exception(f'Invalid response from ChatGPT. Response: {response_json}')
+        except requests.exceptions.HTTPError as http_err:
+            print(f"HTTP error occurred: {http_err}")
+            print("Response content:", response.text)  # Print the raw response content for debugging
             self.progress_data['fail'] = True
-            self.progress_data['fail_message'] = str(traceback.format_exc())
-            raise SystemExit(e)
+            self.progress_data['fail_message'] = str(http_err)
+            raise SystemExit(http_err)
+        except requests.exceptions.RequestException as req_err:
+            print(f"Request error: {req_err}")
+            print("Response content:", response.text)  # Print raw response in case of other request errors
+            self.progress_data['fail'] = True
+            self.progress_data['fail_message'] = str(req_err)
+            raise SystemExit(req_err)

@@ -25,7 +25,7 @@ Everyone is welcome to test ChatGPT's ability to write a novel! Please follow th
 ## Note
 
 - The application **never** stores or uses your API Key outside of your own prompts. All of the code in this repository is public.
-- The application uses gpt-4o-mini for the vast majority of prompts. Most prompts total out between 2 - 15 cents.
+- The application uses either gpt-4o-mini or gpt4o for the vast majority of prompts. Most prompts total out between 25-200 cents depending on the base model used.
 
 ## Contribution
 
